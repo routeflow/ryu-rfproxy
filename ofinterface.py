@@ -5,6 +5,7 @@ from binascii import *
 from rflib.types.Match import *
 from rflib.types.Action import *
 from rflib.types.Option import *
+from rflib.types.Band import *
 
 OFP_BUFFER_NONE = 0xffffffff
 
@@ -87,6 +88,44 @@ def create_group_mod(dp, command, group, action_tlvs, weight=0,type_=None):
     buckets = [parser.OFPBucket(weight, actions=actions)]
 
     return parser.OFPGroupMod(dp, command, type_, group, buckets)
+
+
+def bands_from_routemod(ofproto, parser, band_tlvs):
+    bands = []
+    for a in band_tlvs:
+        band = Band.from_dict(a)
+        if band._type == RFBT_DROP:
+            bands.append(parser.OFPMeterBandDrop(
+                band.get_rate(), band.get_burst_size()))
+        elif band._type == RFBT_DSCP_REMARK:
+            bands.append(parser.OFPMeterBandDscpRemark(
+                band.get_rate(), band.get_burst_size(), band.get_prec_level()))
+        elif band._type == RFBT_EXPERIMENTER:
+            bands.append(parser.OFPMeterBandExperimenter(
+                band.get_rate(), band.get_burst_size(), band.get_experimenter()))
+        else:
+            log.warning("Failed to serialise Band (type: %s)" % band._type)
+    return bands
+
+
+def create_meter_mod(dp, command, meter, band_tlvs, flags=None):
+    ofproto = dp.ofproto
+    parser = dp.ofproto_parser
+
+    if command == RMT_ADD_METER:
+        command = ofproto.OFPMC_ADD
+    elif command == RMT_DELETE_METER:
+        command = ofproto.OFPMC_DELETE
+
+    if flags is None:
+        flags = ofproto.OFPMF_STATS
+
+    if meter == 0:
+        meter = ofproto.OFPM_ALL
+
+    bands = bands_from_routemod(ofproto, parser, band_tlvs)
+
+    return parser.OFPMeterMod(dp, command, flags, meter, bands)
 
 
 def create_default_flow_mod(dp, cookie=0, cookie_mask=0, table_id=0,
