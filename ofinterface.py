@@ -246,8 +246,8 @@ def add_actions(flow_mod, action_tlvs):
     parser = flow_mod.datapath.ofproto_parser
     ofproto = flow_mod.datapath.ofproto
     actions, instructions = actions_from_routemod(ofproto, parser, action_tlvs)
-    if len(instructions) == 0:
-        instructions = [ parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions) ]
+    if len(actions) > 0:
+        instructions.append(parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions))
     flow_mod.instructions = instructions
 
 
