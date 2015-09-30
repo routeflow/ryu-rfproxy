@@ -239,6 +239,10 @@ def add_matches(flow_mod, matches):
             flow_mod.match.set_in_port(bin_to_int(match._value))
         elif match._type == RFMT_VLAN_ID:
             flow_mod.match.set_vlan_vid(bin_to_int(match._value))
+        elif match._type == RFMT_VLAN_TAGGED:
+            tagged = match.get_value()
+            vid = OFPVID_PRESENT if tagged else 0
+            flow_mod.match.set_vlan_vid_masked(vid, OFPVID_PRESENT)
         elif TLV.optional(match):
             log.info("Dropping unsupported Match (type: %s)" % match._type)
         else:
