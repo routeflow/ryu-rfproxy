@@ -43,6 +43,23 @@ def actions_from_routemod(ofproto, parser, action_tlvs):
         elif action._type == RFAT_STRIP_VLAN_DEFERRED:
             instructions.append(parser.OFPInstructionActions(
                 ofproto.OFPIT_WRITE_ACTIONS, (parser.OFPActionPopVlan(),)))
+        elif action._type == RFAT_CLEAR_DEFERRED:
+            instructions.append(parser.OFPInstructionActions(
+                ofproto.OFPIT_CLEAR_ACTIONS, ()))
+        elif action._type == RFAT_SET_VLAN_PCP:
+            pcp = bin_to_int(action._value)
+            actions.append(parser.OFPActionSetField(vlan_pcp=pcp))
+        elif action._type == RFAT_SET_QUEUE:
+            queue = bin_to_int(action._value)
+            actions.append(parser.OFPActionSetQueue(queue))
+        elif action._type == RFAT_APPLY_METER:
+            meter_id = bin_to_int(action._value)
+            instructions.append(parser.OFPInstructionMeter(meter_id))
+        elif action._type == RFAT_GROUP_DEFERRED:
+            group = bin_to_int(action._value)
+            instructions.append(parser.OFPInstructionActions(
+                ofproto.OFPIT_WRITE_ACTIONS,
+                (parser.OFPActionGroup(group),)))
         elif action.optional():
             log.info("Dropping unsupported Action (type: %s)" % action._type)
         else:
