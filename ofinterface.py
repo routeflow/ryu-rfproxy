@@ -5,6 +5,7 @@ from binascii import *
 from rflib.types.Match import *
 from rflib.types.Action import *
 from rflib.types.Option import *
+from rflib.types.Band import *
 
 OFP_BUFFER_NONE = 0xffffffff
 
@@ -22,7 +23,7 @@ def actions_from_routemod(ofproto, parser, action_tlvs):
             dstMac = action._value
             dst = parser.OFPMatchField.make(ofproto.OXM_OF_ETH_DST, dstMac)
             actions.append(parser.OFPActionSetField(dst))
-        elif action._type in (RFAT_SET_VLAN_ID, RFAT_SWAP_VLAN_ID):
+        elif action._type in (RFAT_SWAP_VLAN_ID, RFAT_PUSH_VLAN_ID):
             if action._type == RFAT_SWAP_VLAN_ID:
                 actions.append(parser.OFPActionPopVlan())
             actions.append(parser.OFPActionPushVlan(0x8100));
@@ -43,6 +44,27 @@ def actions_from_routemod(ofproto, parser, action_tlvs):
         elif action._type == RFAT_STRIP_VLAN_DEFERRED:
             instructions.append(parser.OFPInstructionActions(
                 ofproto.OFPIT_WRITE_ACTIONS, (parser.OFPActionPopVlan(),)))
+        elif action._type == RFAT_CLEAR_DEFERRED:
+            instructions.append(parser.OFPInstructionActions(
+                ofproto.OFPIT_CLEAR_ACTIONS, ()))
+        elif action._type == RFAT_SET_VLAN_PCP:
+            pcp = bin_to_int(action._value)
+            actions.append(parser.OFPActionSetField(vlan_pcp=pcp))
+        elif action._type == RFAT_SET_QUEUE:
+            queue = bin_to_int(action._value)
+            actions.append(parser.OFPActionSetQueue(queue))
+        elif action._type == RFAT_APPLY_METER:
+            meter_id = bin_to_int(action._value)
+            instructions.append(parser.OFPInstructionMeter(meter_id))
+        elif action._type == RFAT_GROUP_DEFERRED:
+            group = bin_to_int(action._value)
+            instructions.append(parser.OFPInstructionActions(
+                ofproto.OFPIT_WRITE_ACTIONS,
+                (parser.OFPActionGroup(group),)))
+        elif action._type == RFAT_SET_VLAN_ID:
+            vlan_id = bin_to_int(action._value)
+            vlan = parser.OFPMatchField.make(ofproto.OXM_OF_VLAN_VID, vlan_id)
+            actions.append(parser.OFPActionSetField(vlan))
         elif action.optional():
             log.info("Dropping unsupported Action (type: %s)" % action._type)
         else:
@@ -70,6 +92,44 @@ def create_group_mod(dp, command, group, action_tlvs, weight=0,type_=None):
     buckets = [parser.OFPBucket(weight, actions=actions)]
 
     return parser.OFPGroupMod(dp, command, type_, group, buckets)
+
+
+def bands_from_routemod(ofproto, parser, band_tlvs):
+    bands = []
+    for a in band_tlvs:
+        band = Band.from_dict(a)
+        if band._type == RFBT_DROP:
+            bands.append(parser.OFPMeterBandDrop(
+                band.get_rate(), band.get_burst_size()))
+        elif band._type == RFBT_DSCP_REMARK:
+            bands.append(parser.OFPMeterBandDscpRemark(
+                band.get_rate(), band.get_burst_size(), band.get_prec_level()))
+        elif band._type == RFBT_EXPERIMENTER:
+            bands.append(parser.OFPMeterBandExperimenter(
+                band.get_rate(), band.get_burst_size(), band.get_experimenter()))
+        else:
+            log.warning("Failed to serialise Band (type: %s)" % band._type)
+    return bands
+
+
+def create_meter_mod(dp, command, meter, band_tlvs, flags=None):
+    ofproto = dp.ofproto
+    parser = dp.ofproto_parser
+
+    if command == RMT_ADD_METER:
+        command = ofproto.OFPMC_ADD
+    elif command == RMT_DELETE_METER:
+        command = ofproto.OFPMC_DELETE
+
+    if flags is None:
+        flags = ofproto.OFPMF_STATS
+
+    if meter == 0:
+        meter = ofproto.OFPM_ALL
+
+    bands = bands_from_routemod(ofproto, parser, band_tlvs)
+
+    return parser.OFPMeterMod(dp, command, flags, meter, bands)
 
 
 def create_default_flow_mod(dp, cookie=0, cookie_mask=0, table_id=0,
@@ -179,6 +239,10 @@ def add_matches(flow_mod, matches):
             flow_mod.match.set_in_port(bin_to_int(match._value))
         elif match._type == RFMT_VLAN_ID:
             flow_mod.match.set_vlan_vid(bin_to_int(match._value))
+        elif match._type == RFMT_VLAN_TAGGED:
+            tagged = match.get_value()
+            vid = OFPVID_PRESENT if tagged else 0
+            flow_mod.match.set_vlan_vid_masked(vid, OFPVID_PRESENT)
         elif TLV.optional(match):
             log.info("Dropping unsupported Match (type: %s)" % match._type)
         else:
@@ -190,8 +254,8 @@ def add_actions(flow_mod, action_tlvs):
     parser = flow_mod.datapath.ofproto_parser
     ofproto = flow_mod.datapath.ofproto
     actions, instructions = actions_from_routemod(ofproto, parser, action_tlvs)
-    if len(instructions) == 0:
-        instructions = [ parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions) ]
+    if len(actions) > 0:
+        instructions.append(parser.OFPInstructionActions(ofproto.OFPIT_APPLY_ACTIONS, actions))
     flow_mod.instructions = instructions
 
 

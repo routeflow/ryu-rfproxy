@@ -100,6 +100,12 @@ class RFProcessor(IPC.IPCMessageProcessor):
                                          msg.get_mod(),
                                          msg.get_group(),
                                          msg.get_actions())
+            elif msg.get_mod() in (RMT_ADD_METER, RMT_DELETE_METER):
+                ofmsg = create_meter_mod(dp,
+                                         msg.get_mod(),
+                                         msg.get_meter(),
+                                         msg.get_bands(),
+                                         msg.get_flags())
             else:
                 log.warning("unknown routemod: %s", msg)
                 return
@@ -111,7 +117,9 @@ class RFProcessor(IPC.IPCMessageProcessor):
                 log.warning(type(e))
                 log.warning(str(e))
 
-            if msg.get_mod() in (RMT_DELETE, RMT_CONTROLLER, RMT_ADD_GROUP, RMT_DELETE_GROUP):
+            if msg.get_mod() in (RMT_DELETE, RMT_CONTROLLER,
+                                 RMT_ADD_GROUP, RMT_DELETE_GROUP,
+                                 RMT_ADD_METER, RMT_DELETE_METER):
                 dp.send_barrier()
 
             self.ipc_send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
