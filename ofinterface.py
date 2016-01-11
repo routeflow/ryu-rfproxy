@@ -45,6 +45,8 @@ def actions_from_routemod(ofproto, parser, action_tlvs):
         elif action._type == RFAT_STRIP_VLAN_DEFERRED:
             instructions.append(parser.OFPInstructionActions(
                 ofproto.OFPIT_WRITE_ACTIONS, (parser.OFPActionPopVlan(),)))
+        elif action._type == RFAT_STRIP_VLAN:
+            actions.append(parser.OFPActionPopVlan())
         elif action._type == RFAT_CLEAR_DEFERRED:
             instructions.append(parser.OFPInstructionActions(
                 ofproto.OFPIT_CLEAR_ACTIONS, ()))
