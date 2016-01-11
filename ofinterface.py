@@ -10,7 +10,6 @@ from rflib.types.Band import *
 OFP_BUFFER_NONE = 0xffffffff
 ROUTEFLOW_COOKIE = 0x12007EF103
 
-
 def actions_from_routemod(ofproto, parser, action_tlvs):
     instructions = []
     actions = []
@@ -24,12 +23,12 @@ def actions_from_routemod(ofproto, parser, action_tlvs):
             dstMac = action._value
             dst = parser.OFPMatchField.make(ofproto.OXM_OF_ETH_DST, dstMac)
             actions.append(parser.OFPActionSetField(dst))
-        elif action._type in (RFAT_SWAP_VLAN_ID, RFAT_PUSH_VLAN_ID):
+        elif action._type in (RFAT_PUSH_VLAN_ID, RFAT_SWAP_VLAN_ID):
             if action._type == RFAT_SWAP_VLAN_ID:
                 actions.append(parser.OFPActionPopVlan())
             actions.append(parser.OFPActionPushVlan(0x8100));
             vlan_id = bin_to_int(action._value)
-            vlan = parser.OFPMatchField.make(ofproto.OXM_OF_VLAN_VID, vlan_id)
+            vlan = parser.OFPMatchField.make(ofproto.OXM_OF_VLAN_VID, vlan_id|ofproto.OFPVID_PRESENT)
             actions.append(parser.OFPActionSetField(vlan))
             pcp = parser.OFPMatchField.make(ofproto.OXM_OF_VLAN_PCP, 0)
             actions.append(parser.OFPActionSetField(pcp))
@@ -66,7 +65,7 @@ def actions_from_routemod(ofproto, parser, action_tlvs):
                 (parser.OFPActionGroup(group),)))
         elif action._type == RFAT_SET_VLAN_ID:
             vlan_id = bin_to_int(action._value)
-            vlan = parser.OFPMatchField.make(ofproto.OXM_OF_VLAN_VID, vlan_id)
+            vlan = parser.OFPMatchField.make(ofproto.OXM_OF_VLAN_VID, vlan_id|ofproto.OFPVID_PRESENT)
             actions.append(parser.OFPActionSetField(vlan))
         elif action.optional():
             log.info("Dropping unsupported Action (type: %s)" % action._type)

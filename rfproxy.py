@@ -117,9 +117,7 @@ class RFProcessor(IPC.IPCMessageProcessor):
                 log.warning(type(e))
                 log.warning(str(e))
 
-            if msg.get_mod() in (RMT_DELETE, RMT_CONTROLLER,
-                                 RMT_ADD_GROUP, RMT_DELETE_GROUP,
-                                 RMT_ADD_METER, RMT_DELETE_METER):
+            if msg.get_mod() in (RMT_DELETE, RMT_CONTROLLER, RMT_ADD_GROUP, RMT_DELETE_GROUP, RMT_ADD_METER, RMT_DELETE_METER):
                 dp.send_barrier()
 
             self.ipc_send(RFSERVER_RFPROXY_CHANNEL, RFSERVER_ID, msg)
